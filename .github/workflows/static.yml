@@ -1,0 +1,52 @@
+# Archivo: .github/workflows/static.yml
+
+name: Deploy React to GitHub Pages
+
+on:
+  push:
+    branches: ["main"] # Se ejecuta cuando hay un push a la rama principal
+
+# Permisos para escribir en el área de GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout del código
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Configurar Node.js
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Usa una versión LTS
+          cache: 'npm'
+          
+      # 3. Instalar dependencias
+      - name: Install dependencies
+        run: npm install
+
+      # 4. Compilar la aplicación React (esto crea la carpeta 'build' o 'dist')
+      - name: Build project
+        run: npm run build
+        # Si usaste create-react-app, el comando es 'npm run build'
+
+      # 5. Configurar el entorno de despliegue de GitHub Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # 6. Cargar los artefactos de la compilación
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './build' # Asegúrate de que esta sea la carpeta de salida (output) de tu compilación de React
+
+      # 7. Desplegar
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
