@@ -1,19 +1,28 @@
 <?php
-session_start(); // Inicia o reanuda la sesión
+// api/login.php
+session_start();
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Content-Type");
+header("Content-Type: application/json");
 
-// Verificar si se ha enviado un formulario POST
-if (isset($_POST['usuario'])) {
-    $usuario = htmlspecialchars($_POST['usuario']); // Limpieza de input
-    $_SESSION["usuario"] = $usuario;
-    echo "Sesión iniciada para: " . $_SESSION["usuario"] . ". El ID de sesión es: " . session_id();
-} elseif (isset($_GET['logout'])) {
-    session_destroy();
-    echo "Sesión destruida (Logout exitoso).";
-} else {
-    if (isset($_SESSION["usuario"])) {
-        echo "Ya existe una sesión activa para: " . $_SESSION["usuario"];
-    } else {
-        echo "No hay sesión activa. Envía un POST con 'usuario' para iniciar sesión.";
+$input = json_decode(file_get_contents('php://input'), true);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $usuario = $input['usuario'] ?? null;
+    if (!$usuario) {
+        http_response_code(400);
+        echo json_encode(['error' => 'usuario requerido']);
+        exit();
     }
+    $_SESSION['usuario'] = $usuario;
+    echo json_encode(['mensaje' => "Sesión iniciada para $usuario"]);
+    exit();
 }
-?>
+
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    session_destroy();
+    echo json_encode(['mensaje' => 'Sesión cerrada']);
+    exit();
+}
+
+echo json_encode(['sesion' => $_SESSION ?? []]);

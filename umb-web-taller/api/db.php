@@ -1,27 +1,39 @@
 <?php
-// 1. Configuración de Variables de Entorno (o valores temporales para desarrollo)
-// Render proveerá estos valores cuando se despliegue.
-$host = getenv('DB_HOST') ?: "localhost";
-$port = getenv('DB_PORT') ?: "5432";
-$dbname = getenv('DB_NAME') ?: "postgres";
-$user = getenv('DB_USER') ?: "postgres";
-$password = getenv('DB_PASSWORD') ?: "tu_contraseña_temporal";
+// api/db.php
+// Usa la variable de entorno DATABASE_URL (postgres://user:pass@host:port/dbname)
+// Si prefieres, define individualmente SUPA_HOST, SUPA_DB, SUPA_USER, SUPA_PASS, SUPA_PORT en Render.
+
+$databaseUrl = getenv('DATABASE_URL');
+
+if ($databaseUrl) {
+    $parts = parse_url($databaseUrl);
+
+    $dbHost = $parts['host'];
+    $dbPort = $parts['port'] ?? 5432;
+    $dbUser = $parts['user'];
+    $dbPass = $parts['pass'];
+    $dbName = ltrim($parts['path'], '/');
+
+    // DSN con sslmode=require (necesario para conexiones remotas con Supabase)
+    $dsn = "pgsql:host={$dbHost};port={$dbPort};dbname={$dbName};sslmode=require";
+} else {
+    // Alternativa si usas variables individuales en Render
+    $dbHost = getenv('SUPA_HOST');
+    $dbPort = getenv('SUPA_PORT') ?: 5432;
+    $dbUser = getenv('SUPA_USER');
+    $dbPass = getenv('SUPA_PASS');
+    $dbName = getenv('SUPA_DB');
+    $dsn = "pgsql:host={$dbHost};port={$dbPort};dbname={$dbName};sslmode=require";
+}
 
 try {
-    // Conexión usando PDO (PHP Data Objects) para PostgreSQL
-    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
-    
-    // El último array activa el manejo de errores (lanzará excepciones)
-    $pdo = new PDO($dsn, $user, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    
+    // Opciones: persistente desactivada por seguridad en deploys compartidos
+    $pdo = new PDO($dsn, $dbUser, $dbPass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
 } catch (PDOException $e) {
-    // 2. Validación y manejo de error
-    // En producción, solo deberías loguear el error, no mostrarlo al usuario.
-    error_log("Error al conectar a PostgreSQL: " . $e->getMessage());
-    // Devolvemos una respuesta de error al cliente
     http_response_code(500);
-    echo json_encode(['error' => 'Error de conexión a la base de datos']);
+    echo json_encode(['error' => 'DB connection failed: ' . $e->getMessage()]);
     exit();
 }
-// La variable $pdo estará disponible para ser usada en modelo.php
-?>

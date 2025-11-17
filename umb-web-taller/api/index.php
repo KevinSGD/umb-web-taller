@@ -1,76 +1,76 @@
 <?php
-// Configuración CORS - Obligatorio para que React pueda acceder
+// api/index.php
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Content-Type: application/json"); // La respuesta siempre será JSON
+header('Content-Type: application/json; charset=utf-8');
 
-// Salida temprana para la solicitud OPTIONS (CORS preflight request)
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
     exit();
 }
 
 require_once 'modelo.php';
 
-$metodo = $_SERVER['REQUEST_METHOD'];
+$method = $_SERVER['REQUEST_METHOD'];
+$path = isset($_GET['path']) ? $_GET['path'] : null;
 
-// Capturar datos para POST, PUT, DELETE (vienen en el cuerpo JSON)
-// Usamos 'php://input' para leer el cuerpo de la petición HTTP
-$datos = json_decode(file_get_contents('php://input'), true);
+// Parse input JSON
+$input = json_decode(file_get_contents('php://input'), true);
 
-switch ($metodo) {
-    case 'GET':
-        // READ: Obtener todas las tareas
+// Routing simple por método y parámetros
+if ($method === 'GET') {
+    if (isset($_GET['id'])) {
+        $tarea = obtenerTarea((int)$_GET['id']);
+        echo json_encode($tarea ?: []);
+    } else {
         $tareas = obtenerTareas();
         echo json_encode($tareas);
-        break;
-
-    case 'POST':
-        // CREATE: Crear una nueva tarea
-        if (isset($datos['titulo'])) {
-            crearTarea($datos['titulo']);
-            http_response_code(201); // 201 Created
-            echo json_encode(['mensaje' => 'Tarea creada']);
-        } else {
-            http_response_code(400); // 400 Bad Request
-            echo json_encode(['error' => 'Título requerido']);
-        }
-        break;
-
-    case 'PUT':
-        // UPDATE: Actualizar el estado de la tarea (completada)
-        if (isset($datos['id']) && isset($datos['completada'])) {
-            // Asegurarse de que 'completada' es un booleano
-            $completada_bool = filter_var($datos['completada'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-            if ($completada_bool !== null) {
-                actualizarTarea($datos['id'], $completada_bool);
-                echo json_encode(['mensaje' => 'Tarea actualizada']);
-            } else {
-                 http_response_code(400);
-                 echo json_encode(['error' => 'Estado completada inválido']);
-            }
-        } else {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID y estado de completada requeridos']);
-        }
-        break;
-
-    case 'DELETE':
-        // DELETE: Eliminar una tarea
-        if (isset($datos['id'])) {
-            eliminarTarea($datos['id']);
-            echo json_encode(['mensaje' => 'Tarea eliminada']);
-        } else {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID requerido para eliminar']);
-        }
-        break;
-
-    default:
-        // Método no soportado
-        http_response_code(405); // 405 Method Not Allowed
-        echo json_encode(['error' => 'Método no permitido']);
-        break;
+    }
+    exit();
 }
-?>
+
+if ($method === 'POST') {
+    // crear
+    $titulo = $input['titulo'] ?? null;
+    if (!$titulo) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Falta el campo titulo']);
+        exit();
+    }
+    $id = crearTarea($titulo);
+    http_response_code(201);
+    echo json_encode(['mensaje' => 'Tarea creada', 'id' => $id]);
+    exit();
+}
+
+if ($method === 'PUT') {
+    // actualizar: espera id en query o en body
+    $id = $_GET['id'] ?? ($input['id'] ?? null);
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Falta id']);
+        exit();
+    }
+    $titulo = $input['titulo'] ?? null;
+    $completada = array_key_exists('completada', $input) ? (bool)$input['completada'] : null;
+    $ok = actualizarTarea((int)$id, $titulo, $completada);
+    echo json_encode(['ok' => (bool)$ok]);
+    exit();
+}
+
+if ($method === 'DELETE') {
+    $id = $_GET['id'] ?? ($input['id'] ?? null);
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Falta id']);
+        exit();
+    }
+    $ok = eliminarTarea((int)$id);
+    echo json_encode(['ok' => (bool)$ok]);
+    exit();
+}
+
+// método no permitido
+http_response_code(405);
+echo json_encode(['error' => 'Método no permitido']);
